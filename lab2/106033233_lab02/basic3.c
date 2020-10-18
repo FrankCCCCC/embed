@@ -8,15 +8,15 @@
 #define LED2 BIT6
 #define B1 BIT3
 // SMCLK DCO Clock
-#define R_B_T 7812
-#define G_B_T 14062
-#define B_B_T 7812
-#define B_P_T 31249
+//#define R_B_T 7812
+//#define G_B_T 14062
+//#define B_B_T 7812
+#define B_P_T 34374
 
 // ACLK VLO Clock
-//#define R_B_T 5999
-//#define G_B_T 10799
-//#define B_B_T 5999
+#define R_B_T 5999
+#define G_B_T 10799
+#define B_B_T 5999
 //#define B_P_T 23999
 
 int main(void)
@@ -30,23 +30,24 @@ int main(void)
     P1OUT |= B1;
 
 //  DCO SMCLK for TA0CTL
-    BCSCTL1 = CALBC1_1MHZ;
-    DCOCTL = CALDCO_1MHZ;
-    BCSCTL2 = DIVS_3;
-    TA0CCR0 = R_B_T;
-    TA0CTL |= MC_1|ID_3|TASSEL_2|TACLR;
-
-//  LED Clock, VLO ACLK for TA0CTL
-//    TA0CCR0 = R_B_T;
-//    BCSCTL3 |= LFXT1S_2;
-//    TA0CTL |= MC_1|TASSEL_1|TACLR;
-
-//  Button Clock, DCO SMCLK for TA1CTL
 //    BCSCTL1 = CALBC1_1MHZ;
 //    DCOCTL = CALDCO_1MHZ;
 //    BCSCTL2 = DIVS_3;
-//    TA1CCR1 = 3;
-//    TA1CTL |= MC_1|ID_3|TASSEL_2|TACLR;
+//    TA0CCR0 = R_B_T;
+//    TA0CTL |= MC_1|ID_3|TASSEL_2|TACLR;
+
+//  LED Clock, VLO ACLK for TA0CTL
+    TA0CCR0 = R_B_T;
+    BCSCTL3 |= LFXT1S_2;
+    TA0CTL |= MC_1|TASSEL_1|TACLR;
+
+//  Button Clock, DCO SMCLK for TA1CTL
+    BCSCTL1 = CALBC1_1MHZ;
+    DCOCTL = CALDCO_1MHZ;
+//    BCSCTL2 = 0;
+    BCSCTL2 = DIVS_3;
+    TA1CCR0 = B_P_T;
+    TA1CTL |= MC_1|ID_3|TASSEL_2|TACLR;
 
 //    TA1CCR1 = 5999;
 //    TA1CTL |= MC_1|TASSEL_1|TACLR;
@@ -55,24 +56,45 @@ int main(void)
     volatile unsigned int s = 0;
     volatile unsigned int p = 0;
     volatile unsigned int prev_s = 0;
+    volatile unsigned int is_pressed1 = 1;
 
     for(;;){
+        if(((P1IN & B1) == 0)){
+            is_pressed1 = 1;
+        }else{
+            is_pressed1 = 0;
+            TA1R = 0;
+        }
+        if(is_pressed1 && ((TA1CTL & TAIFG)) && (s <= 5)){
+            TA1CTL &= ~TAIFG;  // Clear overflow flag
+            s = 6;
+            TA1R = 0;
+        }
+
         if(s == 0 || s == 1 || s == 2 || s == 3){
 //          Red LED blink twice
             TA0CCR0 = R_B_T;
 
-            if((P1IN & B1) == 0){
-                P1OUT &= ~LED1;
-                P1OUT &= ~LED2;
-                prev_s = s;
-                s = 8;
-//                TA0CCR0 = B_P_T;
-                continue;
+//            if((P1IN & B1) == 0){
+//                P1OUT &= ~LED1;
+//                P1OUT &= ~LED2;
+//                prev_s = s;
+//                s = 8;
+////                TA0CCR0 = B_P_T;
+//                continue;
+//            }
+
+            while (!(TA0CTL & TAIFG)) {
+                if(((P1IN & B1) == 0)){
+                    is_pressed1 = 1;
+                }else{
+                    is_pressed1 = 0;
+                    TA1R = 0;
+                }
             }
 
-            while (!(TA0CTL & TAIFG)) {}
-
             TA0CTL &= ~TAIFG;  // Clear overflow flag
+            TA0R = 0;
             if(!(s % 2)){
                 P1OUT |= LED1;
             }else{
@@ -84,18 +106,26 @@ int main(void)
 //          Green LED blink once
             TA0CCR0 = G_B_T;
 
-            if((P1IN & B1) == 0){
-                P1OUT &= ~LED1;
-                P1OUT &= ~LED2;
-                prev_s = s;
-                s = 8;
-//                TA0CCR0 = B_P_T;
-                continue;
+//            if((P1IN & B1) == 0){
+//                P1OUT &= ~LED1;
+//                P1OUT &= ~LED2;
+//                prev_s = s;
+//                s = 8;
+////                TA0CCR0 = B_P_T;
+//                continue;
+//            }
+
+            while (!(TA0CTL & TAIFG)) {
+                if(((P1IN & B1) == 0)){
+                    is_pressed1 = 1;
+                }else{
+                    is_pressed1 = 0;
+                    TA1R = 0;
+                }
             }
 
-            while (!(TA0CTL & TAIFG)) {}
-
             TA0CTL &= ~TAIFG;  // Clear overflow flag
+            TA0R = 0;
             if(!(s % 2)){
                 P1OUT |= LED2;
             }else{
@@ -112,13 +142,23 @@ int main(void)
                 P1OUT &= ~LED2;
                 prev_s = 0;
                 s = 0;
+                TA0R = 0;
+                TA1R = 0;
 //                TA0CCR0 = R_B_T;
                 continue;
             }
 
-            while (!(TA0CTL & TAIFG)) {}
+            while (!(TA0CTL & TAIFG)) {
+                if(((P1IN & B1) == 0)){
+                    is_pressed1 = 1;
+                }else{
+                    is_pressed1 = 0;
+                    TA1R = 0;
+                }
+            }
 
             TA0CTL &= ~TAIFG;  // Clear overflow flag
+            TA0R = 0;
             if(!(s % 2)){
                 P1OUT |= LED1;
                 P1OUT |= LED2;
@@ -134,33 +174,34 @@ int main(void)
                 s = 6;
             }
 //            s = (s + 1) % 6;
-        }else if(s == 8){
-//          Checking button pressed time
-            volatile unsigned int is_pressed = 1;
-            TA0CCR0 = B_P_T;
-
-            while (!(TA0CTL & TAIFG)) {
-                if(!(P1IN & B1) == 0){
-                    is_pressed = 0;
-                    break;
-                }
-            }
-
-            TA0CTL &= ~TAIFG;  // Clear overflow flag
-            if(is_pressed){
-//              Pressed button for 2sec, go to state 6
-                s = 6;
-                P1OUT &= ~LED1;
-                P1OUT &= ~LED2;
-//                TA0CCR0 = B_B_T;
-            }else{
-//              Released button, back to original state
-                P1OUT &= ~LED1;
-                P1OUT &= ~LED2;
-                s = prev_s;
-                prev_s = 0;
-            }
         }
+//        else if(s == 8){
+////          Checking button pressed time
+//            volatile unsigned int is_pressed = 1;
+////            TA1CCR1 = B_P_T;
+//
+//            while (!(TA1CTL & TAIFG)) {
+//                if(!(P1IN & B1) == 0){
+//                    is_pressed = 0;
+//                    break;
+//                }
+//            }
+//
+//            TA1CTL &= ~TAIFG;  // Clear overflow flag
+//            if(is_pressed){
+////              Pressed button for 2sec, go to state 6
+//                s = 6;
+//                P1OUT &= ~LED1;
+//                P1OUT &= ~LED2;
+////                TA0CCR0 = B_B_T;
+//            }else{
+////              Released button, back to original state
+//                P1OUT &= ~LED1;
+//                P1OUT &= ~LED2;
+//                s = prev_s;
+//                prev_s = 0;
+//            }
+//        }
     }
 
     return 0;
