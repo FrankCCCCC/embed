@@ -8,12 +8,13 @@
 //#define R_B_T 7812
 //#define G_B_T 14062
 //#define B_B_T 7812
-#define B_P_T 85936
-#define M_T_T 3905 // Period for Measuring Temperature
+#define B_P_T 42968 // 42968 // total: 85936, but use up/down mode, so half
+#define M_T_T 1952 // total: 3905 // Period for Measuring Temperature
 
 // ACLK VLO Clock
 #define R_B_T 5999 // Red & Green Blink
 #define G_B_T 10799 // Red & Green Blink
+#define B_B_T 5999 // Red & Green Blink
 #define B_O_T 4199 // Both Open
 #define B_C_T 7799 // Both Close
 #define RB_GK_T 2399 // Red Blink, Green Keep Open
@@ -24,7 +25,7 @@ volatile unsigned int rt = 0;
 volatile unsigned int at = 0;
 volatile unsigned int s = 0; // LED State
 volatile unsigned int b_s = 0; // Button State
-//volatile unsigned int c = 0;
+volatile unsigned int c = 0;
 //volatile unsigned int c1 = 0;
 
 void main(void) {
@@ -51,12 +52,13 @@ void main(void) {
 
   TA0CCTL1 = OUTMOD_0;  // TA0CCR1 output only
   TA0CCR0 = B_P_T;     // Button Pressed Time Threshold
-  TA0CCR1 = M_T_T;       // TA0CCR1 OUT1 on time
+//  TA0CCR1 = M_T_T;       // TA0CCR1 OUT1 on time
   BCSCTL1 = CALBC1_1MHZ;
   DCOCTL = CALDCO_1MHZ;
   BCSCTL2 = DIVS_3;
-  TA0CTL |= MC_1|ID_3|TASSEL_2|TACLR;
+  TA0CTL |= MC_3|ID_3|TASSEL_2|TACLR;
   TA0CCTL0 = CCIE; // Enable interrupts
+  TA0R = 0;
 
 // Sensor Timer
 //  TA0CCR0 = M_T_T + 1;     // Sampling period
@@ -156,6 +158,7 @@ void main(void) {
         TA0CCTL1 = OUTMOD_3;  // TA0CCR1 set/reset
         TA0CCR0 = M_T_T + 1;     // Sampling period
         TA0CCTL0 = 0; // Disable interrupts
+        c = 1;
 //        s = 8;
         if(!is_press){
             TA0CTL &= ~TAIFG;  // Clear overflow flag
@@ -180,12 +183,12 @@ __interrupt void ADC10_ISR(void) {
             if(s == 8 || s == 9){
               s = 6;
             }
-        }else{
+       }else{
       //      To Pattern 2
             if(s == 6 || s == 7){
                 s = 8;
             }
-        }
+       }
   }
 
 //  ADC10CTL0 |= ENC + ADC10SC; // enable sampling
@@ -196,7 +199,7 @@ __interrupt void ADC10_ISR(void) {
 __interrupt void TA0_ISR(void) {
     TA0CTL &= ~TAIFG;  // Clear overflow flag
     TA0R = 0;
-//    b_s = 2;
+
     if(b_s == 1){
 //    Pressed & Counting Pressed Time
         TA0CCTL1 = OUTMOD_3;  // TA0CCR1 set/reset
