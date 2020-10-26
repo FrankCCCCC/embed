@@ -141,28 +141,32 @@ void main(void) {
     if((P1IN & B1) == 0){is_press = 1;}
     if(b_s == 0){
 //        Released
-        TA0CCTL1 = OUTMOD_0;  // TA0CCR1 output only
-        TA0CCR0 = B_P_T;     // Button Pressed Time Threshold
-        TA0CCTL0 = CCIE; // Enable interrupts
+//        TA0CCTL1 = OUTMOD_0;  // TA0CCR1 output only
+//        TA0CCR0 = B_P_T;     // Button Pressed Time Threshold
+//        TA0CCTL0 = CCIE; // Enable interrupts
     }else if(b_s == 1){
 //        Pressed & Counting Pressed Time
-        TA0CCTL1 = OUTMOD_0;  // TA0CCR1 output only
-        TA0CCR0 = B_P_T;     // Button Pressed Time Threshold
-        TA0CCTL0 = CCIE; // Enable interrupts
+//        TA0CCTL1 = OUTMOD_0;  // TA0CCR1 output only
+//        TA0CCR0 = B_P_T;     // Button Pressed Time Threshold
+//        TA0CCTL0 = CCIE; // Enable interrupts
         if(!is_press){
             TA0CTL &= ~TAIFG;  // Clear overflow flag
             TA0R = 0;
             b_s = 0;
         }
     }else if(b_s == 2){
-        TA0CCTL1 = OUTMOD_3;  // TA0CCR1 set/reset
-        TA0CCR0 = M_T_T + 1;     // Sampling period
-        TA0CCTL0 = 0; // Disable interrupts
+//        TA0CCTL1 = OUTMOD_3;  // TA0CCR1 set/reset
+//        TA0CCR0 = M_T_T + 1;     // Sampling period
+//        TA0CCTL0 = 0; // Disable interrupts
         c = 1;
 //        s = 8;
         if(!is_press){
             TA0CTL &= ~TAIFG;  // Clear overflow flag
             TA0R = 0;
+
+            TA0CCTL1 = OUTMOD_0;  // TA0CCR1 output only
+            TA0CCR0 = B_P_T;     // Button Pressed Time Threshold
+            TA0CCTL0 = CCIE; // Enable interrupts
             b_s = 0;
             s = 0;
         }
