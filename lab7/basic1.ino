@@ -27,38 +27,41 @@
   http://www.arduino.cc/en/Tutorial/Debounce
 */
 
-#include <Stepper.h>
+
 
 // constants won't change. They're used here to set pin numbers:
 const int buttonPin = 2;    // the number of the pushbutton pin
 const int buttonPin2 = 3;    // the number of the pushbutton pin
+const int buttonPin3 = 4;    // the number of the pushbutton pin
 const int ledPin = 11;      // the number of the LED pin
-const int ledPinG = 10;      // the number of the LED pin
 const int ledPin2 = 12;      // the number of the LED pin
+const int ledPin3 = 13;      // the number of the LED pin
 
 // Variables will change:
+//int ledState = HIGH;         // the current state of the output pin
 int buttonState;             // the current reading from the input pin
 int buttonState2;             // the current reading from the input pin
+int buttonState3;             // the current reading from the input pin
+int lastButtonState = LOW;   // the previous reading from the input pin
+int lastButtonState2 = LOW;   // the previous reading from the input pin
+int lastButtonState3 = LOW;   // the previous reading from the input pin
 
 // the following variables are unsigned longs because the time, measured in
 // milliseconds, will quickly become a bigger number than can be stored in an int.
-//unsigned long debounceDelay = 50;    // the debounce time; increase if the output flickers
+unsigned long lastDebounceTime = 0;  // the last time the output pin was toggled
+unsigned long lastDebounceTime2 = 0;  // the last time the output pin was toggled
+unsigned long lastDebounceTime3 = 0;  // the last time the output pin was toggled
+unsigned long debounceDelay = 50;    // the debounce time; increase if the output flickers
 
 // Button Pressed Time
 int b1_time = 0;
 int b2_time = 0;
-
-//Button Reading
-int reading = 0;
-int reading2 = 0;
+int b3_time = 0;
 
 //Timer State
 int s = 0;
 int s2 = 0;
-
-const int stepsPerRevolution = 200;  // change this to fit the number of steps per revolution
-// initialize the stepper library on pins 8 through 11:
-Stepper myStepper(stepsPerRevolution, 5, 8, 7, 6);
+int s3 = 0;
 
 void set_timer(){
   noInterrupts(); // atomic access to timer reg.
@@ -66,12 +69,11 @@ void set_timer(){
   TCCR1B |= (1 << WGM12); // turn on CTC mode
   TCCR1B |= (1<<CS12) | (1<<CS10); // 1024 prescaler
   OCR1A = 7812;  // give 0.5 sec at 16 MHz/1024
-  
-  TIMSK1 |= (1<<OCIE1A); // enable timer compare int.
-  sei(); // enable all interrupts
 }
 
 void cap_timer(){
+  if (TIFR1 & (1 << OCF1A)) { // wait for time up
+//    digitalWrite(13, digitalRead(13) ^ 1);
     if(buttonState){
       b1_time++; 
       Serial.print("Button 1 Inc");
@@ -88,9 +90,12 @@ void cap_timer(){
     
     if(s){s = 0;}
     else{s = 1;}
+  } 
 }
 
 void cap_timer2(){
+  if (TIFR1 & (1 << OCF1A)) { // wait for time up
+//    digitalWrite(13, digitalRead(13) ^ 1);
     if(buttonState2){
       b2_time++; 
       Serial.print("Button");
@@ -110,6 +115,32 @@ void cap_timer2(){
     }
     if(s2){s2 = 0;}
     else{s2 = 1;}    
+  } 
+}
+
+void cap_timer3(){
+  if (TIFR1 & (1 << OCF1A)) { // wait for time up
+//    digitalWrite(13, digitalRead(13) ^ 1);
+    if(buttonState3){
+      b3_time++; 
+      Serial.print("Button");
+      Serial.print(" 3 ");
+      Serial.print("Inc");
+      Serial.print(b3_time);
+      Serial.print("\n");
+    }else{
+      if(b3_time > 0){
+        b3_time--;
+        Serial.print("Button");
+        Serial.print(" 3 ");
+        Serial.print("Dec");
+        Serial.print(b3_time);
+        Serial.print("\n");
+      }
+    }
+    if(s3){s3 = 0;}
+    else{s3 = 1;}
+  } 
 }
 
 void clear_timer(){
@@ -158,102 +189,121 @@ void led_control2(){
   }
 }
 
-void led_control_rgb(){
-  if(buttonState){
-    digitalWrite(ledPin, HIGH);
+void led_control3(){
+  if(buttonState3){
+    digitalWrite(ledPin3, HIGH);
   }else{
-    if(b1_time > 0){
-      switch(s){
+    if(b3_time > 0){
+      switch(s3){
         case 1:
-          analogWrite(ledPinG, 255);
-          analogWrite(ledPin, 128);
-//          digitalWrite(ledPin2, HIGH);
-//          digitalWrite(ledPin, HIGH);
+          digitalWrite(ledPin3, HIGH);
           break;
         case 0:
-//          digitalWrite(ledPin, LOW);
-//          digitalWrite(ledPin2, LOW);
-          analogWrite(ledPinG, 0);
-          analogWrite(ledPin, 0);
+          digitalWrite(ledPin3, LOW);
           break;
       }
     }else{
-      s = 0;
-      digitalWrite(ledPin, LOW);
-      digitalWrite(ledPinG, LOW);
+      s3 = 0;
+      digitalWrite(ledPin3, LOW);
     }
   }
 }
 
-void stepper_control(){
-  if(buttonState2){
-    myStepper.step(stepsPerRevolution);
-  }else{
-    if(b2_time > 0){
-      myStepper.step(-stepsPerRevolution);
+void btn_control(int reading){
+  if (reading != lastButtonState) {
+    // reset the debouncing timer
+    lastDebounceTime = millis();
+  }
+
+  if ((millis() - lastDebounceTime) > debounceDelay) {
+    // whatever the reading is at, it's been there for longer than the debounce
+    // delay, so take it as the actual current state:
+
+    // if the button state has changed:
+    if (reading != buttonState) {
+      buttonState = reading;
     }
   }
+
+  lastButtonState = reading;
 }
 
-ISR(TIMER1_COMPA_vect) { // Timer1 ISR
-  cap_timer();
-  cap_timer2();
-}
-
-void handle_click() { // button debouncing, toggle LED
-  Serial.print("Interrupt\n");
-  static unsigned long last_int_time = 0;
-  unsigned long int_time = millis(); // Read the clock
-
-  if (int_time - last_int_time > 200 ) {  
-    // Ignore when < 200 msec
-    buttonState = !reading;  // switch LED
+void btn_control2(int reading){
+  if (reading != lastButtonState2) {
+    // reset the debouncing timer
+    lastDebounceTime2 = millis();
   }
 
-  last_int_time = int_time;
-}
+  if ((millis() - lastDebounceTime2) > debounceDelay) {
+    // whatever the reading is at, it's been there for longer than the debounce
+    // delay, so take it as the actual current state:
 
-void handle_click2() { // button debouncing, toggle LED
-  Serial.print("Interrupt2\n");
-  static unsigned long last_int_time = 0;
-  unsigned long int_time = millis(); // Read the clock
-
-  if (int_time - last_int_time > 200 ) {  
-    // Ignore when < 200 msec
-    buttonState2 = !reading2;  // switch LED
+    // if the button state has changed:
+    if (reading != buttonState2) {
+      buttonState2 = reading;
+    }
   }
 
-  last_int_time = int_time;
+  lastButtonState2 = reading;
 }
+
+void btn_control3(int reading){
+  if (reading != lastButtonState3) {
+    // reset the debouncing timer
+    lastDebounceTime3 = millis();
+  }
+
+  if ((millis() - lastDebounceTime3) > debounceDelay) {
+    // whatever the reading is at, it's been there for longer than the debounce
+    // delay, so take it as the actual current state:
+
+    // if the button state has changed:
+    if (reading != buttonState3) {
+      buttonState3 = reading;
+    }
+  }
+
+  lastButtonState3 = reading;
+}
+
 
 void setup() {
   Serial.begin(9600);
   pinMode(buttonPin, INPUT);
   pinMode(buttonPin2, INPUT);
+  pinMode(buttonPin3, INPUT);
   pinMode(ledPin, OUTPUT);
   pinMode(ledPin2, OUTPUT);
-  pinMode(ledPinG, OUTPUT);
-  // set the speed at 60 rpm:
-  myStepper.setSpeed(60);
+  pinMode(ledPin3, OUTPUT);
   set_timer();
-  attachInterrupt(digitalPinToInterrupt(buttonPin), handle_click, CHANGE);
-  attachInterrupt(digitalPinToInterrupt(buttonPin2), handle_click2, CHANGE);
   interrupts(); // enable all interrupts
 
   // set initial LED state
   digitalWrite(ledPin, LOW);
   digitalWrite(ledPin2, LOW);
-  digitalWrite(ledPinG, LOW);
-
+  digitalWrite(ledPin3, LOW);
   Serial.print("Test\n");
 }
 
 void loop() {
   // read the state of the switch into a local variable:
-  reading = digitalRead(buttonPin);
-  reading2 = digitalRead(buttonPin2);
+  int reading = digitalRead(buttonPin);
+  int reading2 = digitalRead(buttonPin2);
+  int reading3 = digitalRead(buttonPin3);
 
-  led_control_rgb();
+  // check to see if you just pressed the button
+  // (i.e. the input went from LOW to HIGH), and you've waited long enough
+  // since the last press to ignore any noise:
+  cap_timer();
+  cap_timer2();
+  cap_timer3();
+  clear_timer();
+
+  btn_control(reading);
+  btn_control2(reading2);
+  btn_control3(reading3);
+  
+  led_control();
   led_control2();
-  stepper_control();
+  led_control3();
 }
