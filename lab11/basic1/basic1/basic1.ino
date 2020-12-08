@@ -1,6 +1,7 @@
 #include <Arduino_FreeRTOS.h>
 #include <Keypad.h>
 #include <LiquidCrystal_I2C.h>
+#include <queue.h>
 
 // Keypad
 #define KEY_ROWS 4
@@ -31,11 +32,20 @@ Keypad myKeypad = Keypad(makeKeymap(keymap), rowPins, colPins, KEY_ROWS, KEY_COL
 
 //LCD 
 LiquidCrystal_I2C lcd(0x27,16,2);
+byte err_dragon[8]  = {B00111, B00101, B00110, B00111, B10100, B10111, B01110, B01010};
 byte dinosaur[8]  = {0x07, 0x05, 0x06, 0x07, 0x14, 0x17, 0x0E, 0x0A};
 byte cactus[8] = {0x04, 0x05, 0x15, 0x15, 0x16, 0x0C, 0x04, 0x04};
 byte empty[0];
 
 // Cactus & Dinosour
+typedef struct{
+  int dino_x;
+  int dino_y;
+  int cactus_x;
+  int cactus_y;
+  int cactus1_x;
+  int cactus1_y;
+}Char_p;
 int dino_px = 0, dino_py = 0;
 int cactus_px = 0, cactus_py = 0;
 int cactus1_px = 0, cactus1_py = 0;
@@ -47,6 +57,7 @@ const int photoPin1 = A1;
 int speed = 0;
 
 // Task Handler
+QueueHandle_t Global_Queue_Handle; //Global Handler
 int is_lcd_suspend = 1;
 TaskHandle_t LCDTaskHandle;
 
@@ -69,25 +80,37 @@ void reset_game(){
   dino_px = 0;
   dino_py = 0;
   
-  cactus_px = 10;
-  cactus_py = 0;
+  cactus_px = 13;
+  cactus_py = 15;
   
-  cactus1_px = 7;
+  cactus1_px = 10;
   cactus1_py = 0;
 
-  speed = 0;
+  Char_p cp;
+  cp.dino_x = 0;
+  cp.dino_y = 0;
+  cp.cactus_x = 13;
+  cp.cactus_y = 15;
+  cp.cactus1_x = 10;
+  cp.cactus1_y = 0;
+  if(!xQueueSend(Global_Queue_Handle, &cp, 10)){
+//        Serial.println("Failed to send to queue");
+  }
+
+  speed = 2;
 }
 
 void create_dino_cactus_cahr(){
-  lcd.createChar(0, dinosaur);
+  lcd.createChar(0, err_dragon);
   lcd.createChar(1, cactus);
-  cactus_px = random(8, 15);
+  cactus_px = random(8, 15) + 2;
   cactus1_px = random(8, 15) - 5;
 }
 
 void cactiTask(void *pvParameters){
   static int timer_counter = 0;
   for(;;){
+    
     if(!speed){
       
     }else if(timer_counter % speed){
@@ -99,15 +122,12 @@ void cactiTask(void *pvParameters){
       int cactus_new_px = cactus_px - 1;
       int cactus1_new_px = cactus1_px - 1;
 
-      // For Cactus0
-      //    Count Score
-      
-      if(cactus_px == 0){
-        if(dino_py != cactus_py){
-          score++;
-        }else{
-          is_game_over = 1;
-        }
+// For Cactus0
+//    Count Score
+      if(!(dino_py == cactus_py && dino_px == cactus_px)){
+        score++;
+      }else{
+        is_game_over = 1;
       }
       
 //      Serial.print(cactus_new_px);
@@ -122,14 +142,12 @@ void cactiTask(void *pvParameters){
           cactus_px = MAXCOL - (MINCOL - cactus_new_px);
       }
 
-      // For Cactus1
-      //    Count Score
-      if(cactus1_px == 0){
-        if(dino_py != cactus1_py){
-          score++;
-        }else{
-          is_game_over = 1;
-        }
+// For Cactus1
+//    Count Score
+      if(!(dino_py == cactus1_py && dino_px == cactus1_px)){
+        score++;
+      }else{
+        is_game_over = 1;
       }
       
 //      Serial.print(cactus_new_px);
@@ -170,8 +188,15 @@ void cactiTask(void *pvParameters){
   }
 }
 
-void LCDTask(void *pvParameters){
+void displayTask(void *pvParameters){
   static int last_cactus_px = 0, last_cactus_py = 0;
+  Char_p cp, new_cp;
+  cp.dino_x = 0;
+  cp.dino_y = 0;
+  cp.cactus_x = random(8, 15) + 2;
+  cp.cactus_y = 15;
+  cp.cactus1_x = random(8, 15) - 5;;
+  cp.cactus1_y = 0;
   
   for(;;){
     lcd.clear();
@@ -183,31 +208,19 @@ void LCDTask(void *pvParameters){
       lcd.print(F("Score: "));
       lcd.print(score);
 
-//      score = 0;
-//      is_game_over = 0;
-//      
-//      dino_px = 0;
-//      dino_py = 0;
-//
-//      cactus_px = 10;
-//      cactus_py = 0;
-//      
-//      cactus1_px = 7;
-//      cactus1_py = 0;
-//      
-//      speed = 0;
-//      Serial.print("IN");
-//      Serial.print(is_game_over);
-//      Serial.print("\n");
-//      game_over();
-//      reset_game();
-      vTaskDelay(50);
+      vTaskDelay(30);
     }else{
-      lcd.setCursor(cactus1_px, cactus1_py); 
+      if(xQueueReceive(Global_Queue_Handle,&new_cp,0)){
+//        Serial.println("receive value:");
+//        Serial.println(rx_int);
+          cp = new_cp;
+      }
+
+      lcd.setCursor(cp.cactus1_x, cp.cactus1_y); 
       lcd.write(1); 
-      lcd.setCursor(cactus_px, cactus_py); 
+      lcd.setCursor(cp.cactus_x, cp.cactus_y); 
       lcd.write(1);
-      lcd.setCursor(dino_px, dino_py); 
+      lcd.setCursor(cp.dino_x, cp.dino_y); 
       lcd.write(0);
     }
 
@@ -253,19 +266,91 @@ void rightTask(void *pvParameters) {
    }  
 }
 
-void keypadTask(void *pvParameters){
+void controlTask(void *pvParameters){
   for( ;; ){
     const char key = myKeypad.getKey();
-    
+    Char_p cp;
+
+//    Control Dino
     if(key == '2'){
       dino_py = 0;
-      Serial.print(key);
-      Serial.print(F("\n"));
     }else if(key == '8'){
       dino_py = 15;
-      Serial.print(key);
-      Serial.print(F("\n"));
+    }else if(key == '4'){
+      dino_px = dino_px - 1 >= MINCOL? dino_px - 1 : dino_px;
+    }else if(key == '6'){
+      dino_px = dino_px + 1 <= MAXCOL? dino_px + 1 : dino_px;
     }
+    
+//  Control Cactus  
+    static int timer_counter = 0;
+    if(!speed){
+      
+    }else if(timer_counter % speed){
+//      if(is_lcd_suspend){vTaskResume(LCDTaskHandle); is_lcd_suspend = 0;}
+      if(is_game_over){
+        reset_game();
+      }
+      
+      int cactus_new_px = cactus_px - 1;
+      int cactus1_new_px = cactus1_px - 1;
+
+// For Cactus0
+//    Count Score
+      if(!(dino_py == cactus_py && dino_px == cactus_px)){
+        score++;
+      }else{
+        is_game_over = 1;
+      }
+      
+//      Serial.print(cactus_new_px);
+      if(cactus_new_px <= MAXCOL && cactus_new_px >= MINCOL){
+//          Serial.print("A \n");
+          cactus_px = cactus_new_px;
+      }else if(cactus_new_px > MAXCOL){
+//          Serial.print("B \n");
+          cactus_px = MINCOL + (cactus_new_px - MAXCOL);
+      }else if(cactus_new_px < MINCOL){
+//          Serial.print("HI \n");
+          cactus_px = MAXCOL - (MINCOL - cactus_new_px);
+      }
+
+// For Cactus1
+//    Count Score
+      if(!(dino_py == cactus1_py && dino_px == cactus1_px)){
+        score++;
+      }else{
+        is_game_over = 1;
+      }
+      
+//      Serial.print(cactus_new_px);
+      if(cactus1_new_px <= MAXCOL && cactus1_new_px >= MINCOL){
+//          Serial.print("A \n");
+          cactus1_px = cactus1_new_px;
+      }else if(cactus1_new_px > MAXCOL){
+//          Serial.print("B \n");
+          cactus1_px = MINCOL + (cactus1_new_px - MAXCOL);
+      }else if(cactus1_new_px < MINCOL){
+//          Serial.print("HI \n");
+          cactus1_px = MAXCOL - (MINCOL - cactus1_new_px);
+      }
+    }
+    
+    cactus_py = 15;
+    cactus1_py = 0;
+
+    cp.dino_x = dino_px;
+    cp.dino_y = dino_py;
+    cp.cactus_x = cactus_px;
+    cp.cactus_y = cactus_py;
+    cp.cactus1_x = cactus1_px;
+    cp.cactus1_y = cactus1_py;
+    if(!xQueueSend(Global_Queue_Handle, &cp, 10)){
+//        Serial.println("Failed to send to queue");
+    }
+    timer_counter = (timer_counter + 1) % 10000;
+    
+    vTaskDelay(10);
   }
 }
 
@@ -274,14 +359,27 @@ void setup(){
   lcd.init();
   lcd.backlight();
   create_dino_cactus_cahr();
+
+  Global_Queue_Handle = xQueueCreate(5, sizeof(Char_p));
   
-  xTaskCreate(cactiTask, "cactiTask", 64, NULL, 5, NULL );
-  xTaskCreate(LCDTask, "LCDTask", 128, NULL, 5, &LCDTaskHandle);
-  xTaskCreate(leftTask, "leftTask", 64, NULL, 5, NULL );
-  xTaskCreate(rightTask, "rightTask", 64, NULL, 5, NULL );
-  xTaskCreate(keypadTask, "keypadTask", 64, NULL, 5, NULL );
+//  xTaskCreate(cactiTask, "cactiTask", 64, NULL, 5, NULL );
+  xTaskCreate(displayTask, "displayTask", 128, NULL, 5, &LCDTaskHandle);
+//  xTaskCreate(leftTask, "leftTask", 64, NULL, 5, NULL );
+//  xTaskCreate(rightTask, "rightTask", 64, NULL, 5, NULL );
+  xTaskCreate(controlTask, "controlTask", 64, NULL, 5, NULL );
 
   vTaskStartScheduler();
+
+  Char_p cp;
+  cp.dino_x = 0;
+  cp.dino_y = 0;
+  cp.cactus_x = random(8, 15) + 2;
+  cp.cactus_y = 15;
+  cp.cactus1_x = random(8, 15) - 5;;
+  cp.cactus1_y = 0;
+  if(!xQueueSend(Global_Queue_Handle, &cp, 10)){
+        Serial.println("Failed to send to queue");
+  }
 }
 void loop(){
 }
