@@ -163,6 +163,7 @@ void controlTask(void *pvParameters){
     Char_p cp;
 
 //  Control Dino
+    char is_dino_move = 1;
     if(key == '2'){
       dino_py = 0;
     }else if(key == '8'){
@@ -184,6 +185,8 @@ void controlTask(void *pvParameters){
         egg_ys[num_eggs] = dino_py;
         num_eggs += 1;
       }
+    }else{
+      is_dino_move = 0;
     }
 
 //  For Cactus0
@@ -204,8 +207,36 @@ void controlTask(void *pvParameters){
     }
     if(num_eggs == 3 && is_game_over == 0){is_game_over = 1; is_success = 1;}
 //  Update Cactus position
-    cactus_px = random(8, 10);
-    cactus_py = random(0, 2)? 15 : 0;
+    if(is_dino_move){
+      char is_moved = 0;
+
+      if(cactus_px + 1 < MAXCOL){
+        if((!random(0, 3)) && (!is_moved)){
+          cactus_px = cactus_px + 1;
+          is_moved = 1;
+        }
+      }
+      if(cactus_px - 1 > MINCOL){
+        if((!random(0, 2)) && (!is_moved)){
+          cactus_px = cactus_px - 1;
+          is_moved = 1;
+        }
+      }
+      if(cactus_py == 0){
+        if(!is_moved){
+          cactus_py = 15;
+          is_moved = 1;
+        }
+      }
+      if(cactus_py == 15){
+        if(!is_moved){
+          cactus_py = 0;
+          is_moved = 1;
+        }
+      }
+      // cactus_px = random(1, 15);
+      // cactus_py = random(0, 2)? 15 : 0;
+    }
     
     cp.dino_x = dino_px;
     cp.dino_y = dino_py;
