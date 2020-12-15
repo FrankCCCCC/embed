@@ -25,6 +25,7 @@
 #define EGG_ID 3
 #define BROKEN_ID 4
 
+#define button 1
 #define xAxis A0
 #define yAxis A1
 
@@ -166,41 +167,42 @@ void dinoTask(void *pvParameters){
     int yVal = analogRead(yAxis);
     // if(key == '2'){
     if(yVal < 400){
-      dino_py = 0;
-      is_dino_move = 1;
-      xSemaphoreGiveFromISR(binary_sem, NULL);
+        dino_py = 0;
+        is_dino_move = 1;
+        xSemaphoreGiveFromISR(binary_sem, NULL);
     // }else if(key == '8'){
     }else if(yVal > 600){
-      dino_py = 1;
-      is_dino_move = 1;
-      xSemaphoreGiveFromISR(binary_sem, NULL);
+        dino_py = 1;
+        is_dino_move = 1;
+        xSemaphoreGiveFromISR(binary_sem, NULL);
     // }else if(key == '4'){
     }else if(xVal < 400){
-      dino_px = dino_px - 1 >= MINCOL? dino_px - 1 : dino_px;
-      is_dino_move = 1;
-      xSemaphoreGiveFromISR(binary_sem, NULL);
+        dino_px = dino_px - 1 >= MINCOL? dino_px - 1 : dino_px;
+        is_dino_move = 1;
+        xSemaphoreGiveFromISR(binary_sem, NULL);
     // }else if(key == '6'){
     }else if(xVal > 600){
-      dino_px = dino_px + 1 <= MAXCOL? dino_px + 1 : dino_px;
-      is_dino_move = 1;
-      xSemaphoreGiveFromISR(binary_sem, NULL);
-    }else if(key == '5'){
-      char is_repeat = 0;
-      for(char i = 0; i < num_eggs; i++){
-        if(dino_px == egg_xs[num_eggs] && dino_py == egg_ys[num_eggs]){
-          is_repeat = 1;
-          break;
+        dino_px = dino_px + 1 <= MAXCOL? dino_px + 1 : dino_px;
+        is_dino_move = 1;
+        xSemaphoreGiveFromISR(binary_sem, NULL);
+    // }else if(key == '5'){
+    }else if(digitalRead(button) == 0){
+        char is_repeat = 0;
+        for(char i = 0; i < num_eggs; i++){
+            if(dino_px == egg_xs[num_eggs] && dino_py == egg_ys[num_eggs]){
+                is_repeat = 1;
+                break;
+            }
         }
-      }
-      if(num_eggs < EGG_ARRAY_LEN && is_repeat == 0){
-        egg_xs[num_eggs] = dino_px;
-        egg_ys[num_eggs] = dino_py;
-        num_eggs += 1;
-      }
-      is_dino_move = 1;
-      xSemaphoreGiveFromISR(binary_sem, NULL);
+        if(num_eggs < EGG_ARRAY_LEN && is_repeat == 0){
+            egg_xs[num_eggs] = dino_px;
+            egg_ys[num_eggs] = dino_py;
+            num_eggs += 1;
+        }
+        is_dino_move = 1;
+        xSemaphoreGiveFromISR(binary_sem, NULL);
     }else{
-      is_dino_move = 0;
+        is_dino_move = 0;
     }
 
 //  For Cactus0
@@ -316,21 +318,22 @@ void cactusTask(void *pvParameters){
 }
 
 void setup(){
-  Serial.begin(9600);
-  lcd.init();
-  lcd.backlight();
-  create_dino_cactus_char();
-  
-  vSemaphoreCreateBinary(binary_sem);
-  gatekeeper = xSemaphoreCreateMutex();
-  
-  reset_game();
-  xTaskCreate(displayTask, "displayTask", 128, NULL, 5, &LCDTaskHandle);
-  xTaskCreate(dinoTask, "dinoTask", 128, NULL, 5, NULL );
-  xTaskCreate(cactusTask, "cactusTask", 128, NULL, 5, NULL );
+    pinMode(button, INPUT_PULLUP); //return LOW when down
+    Serial.begin(9600);
+    lcd.init();
+    lcd.backlight();
+    create_dino_cactus_char();
+    
+    vSemaphoreCreateBinary(binary_sem);
+    gatekeeper = xSemaphoreCreateMutex();
+    
+    reset_game();
+    xTaskCreate(displayTask, "displayTask", 128, NULL, 5, &LCDTaskHandle);
+    xTaskCreate(dinoTask, "dinoTask", 128, NULL, 5, NULL );
+    xTaskCreate(cactusTask, "cactusTask", 128, NULL, 5, NULL );
 
-  vTaskStartScheduler();
-  Serial.println("HI");
+    vTaskStartScheduler();
+    Serial.println("HI");
 }
 void loop(){
 }
