@@ -25,9 +25,10 @@
 #define EGG_ID 3
 #define BROKEN_ID 4
 // Pins
-#define button 1
+#define button 4
 #define xAxis A0
 #define yAxis A1
+#define buzzer 9
 
 // Keypad
 char keymap[KEY_ROWS][KEY_COLS] = {
@@ -37,11 +38,11 @@ char keymap[KEY_ROWS][KEY_COLS] = {
   {'*','0','#','D'}
 };
 // Column pin 1~4
-byte colPins[KEY_COLS]={9, 8, 7, 6};
+//byte colPins[KEY_COLS]={9, 8, 7, 6};
 // Column pin 1~4
-byte rowPins[KEY_ROWS]={13, 12, 11, 10}; 
+//byte rowPins[KEY_ROWS]={13, 12, 11, 10}; 
 // Init KetPad
-Keypad myKeypad = Keypad(makeKeymap(keymap), rowPins, colPins, KEY_ROWS, KEY_COLS);
+//Keypad myKeypad = Keypad(makeKeymap(keymap), rowPins, colPins, KEY_ROWS, KEY_COLS);
 
 //LCD 
 LiquidCrystal_I2C lcd(0x27,16,2);
@@ -75,6 +76,7 @@ const char cactus_dir[4][2] = {{1, 0}, {0, 1}, {-1, 0}, {0, 1}};
 
 // Task Handler
 SemaphoreHandle_t binary_sem; //Global handler
+// SemaphoreHandle_t btn_sem;
 SemaphoreHandle_t  gatekeeper = 0; /* global handler */
 int is_lcd_suspend = 1;
 TaskHandle_t LCDTaskHandle;
@@ -84,15 +86,22 @@ int score = 0;
 int is_game_over = 0;
 char is_success = 0;
 char is_dino_move = 1;
+char is_btn_clk = 0;
 
 void success(){
   lcd.setCursor(0, 0);
   lcd.print(F("Succeed!"));
+  tone(buzzer, 1000);
+  delay(1000);
+  noTone(buzzer); // turn off the buzzer
 }
 
 void fail(){
   lcd.setCursor(0, 0);
   lcd.print(F("Game Over"));
+  tone(buzzer, 500);
+  delay(1000);
+  noTone(buzzer); // turn off the buzzer
 }
 
 void reset_game(){
@@ -160,7 +169,7 @@ void displayTask(void *pvParameters){
 
 void dinoTask(void *pvParameters){
   for( ;; ){
-    const char key = myKeypad.getKey();
+//    const char key = myKeypad.getKey();
 
 //  Control Dino
     int xVal = analogRead(xAxis);
@@ -186,7 +195,8 @@ void dinoTask(void *pvParameters){
         is_dino_move = 1;
         xSemaphoreGiveFromISR(binary_sem, NULL);
     // }else if(key == '5'){
-    }else if(digitalRead(button) == 0){
+//     }else if(digitalRead(button) == 0){
+    }else if(is_btn_clk){
         char is_repeat = 0;
         for(char i = 0; i < num_eggs; i++){
             if(dino_px == egg_xs[num_eggs] && dino_py == egg_ys[num_eggs]){
@@ -200,6 +210,7 @@ void dinoTask(void *pvParameters){
             num_eggs += 1;
         }
         is_dino_move = 1;
+        is_btn_clk = 0;
         xSemaphoreGiveFromISR(binary_sem, NULL);
     }else{
         is_dino_move = 0;
@@ -317,20 +328,46 @@ void cactusTask(void *pvParameters){
 
 }
 
+void handle_click() { // button debouncing, toggle LED
+//    is_btn_clk = 1;
+    Serial.print(F("Interup\n"));
+   static unsigned long last_int_time = 0;
+   static char last_state = (!digitalRead(button));
+   
+   unsigned long int_time = millis(); // Read the clock
+   char state = (!digitalRead(button));
+
+   if (int_time - last_int_time > 200 ) {  
+     // Ignore when < 200 msec
+     if(state == last_state){
+      is_btn_clk = state;
+      last_state = state;
+//      Serial.print(F("clk1\n"));
+     }
+   }
+   last_int_time = int_time;
+}
+
+
 void setup(){
-    pinMode(button, INPUT_PULLUP); //return LOW when down
+    pinMode(buzzer, OUTPUT);
+    pinMode(button, INPUT); //return LOW when down
+    attachInterrupt(digitalPinToInterrupt(button), handle_click, CHANGE);
+//    attachInterrupt(button, handle_click, CHANGE);
+    interrupts();
     Serial.begin(9600);
     lcd.init();
     lcd.backlight();
     create_dino_cactus_char();
     
     vSemaphoreCreateBinary(binary_sem);
+    // vSemaphoreCreateBinary(btn_sem);
     gatekeeper = xSemaphoreCreateMutex();
     
     reset_game();
     xTaskCreate(displayTask, "displayTask", 128, NULL, 5, &LCDTaskHandle);
     xTaskCreate(dinoTask, "dinoTask", 128, NULL, 5, NULL );
-    xTaskCreate(cactusTask, "cactusTask", 128, NULL, 5, NULL );
+    xTaskCreate(cactusTask, "cactusTask", 108, NULL, 5, NULL );
 
     vTaskStartScheduler();
     Serial.println("HI");
