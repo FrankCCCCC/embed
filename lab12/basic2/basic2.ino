@@ -25,7 +25,7 @@
 #define EGG_ID 3
 #define BROKEN_ID 4
 // Pins
-#define button 4
+#define button 2
 #define xAxis A0
 #define yAxis A1
 #define buzzer 9
@@ -332,10 +332,10 @@ void handle_click() { // button debouncing, toggle LED
 //    is_btn_clk = 1;
     Serial.print(F("Interup\n"));
    static unsigned long last_int_time = 0;
-   static char last_state = (!digitalRead(button));
+   static char last_state = digitalRead(button);
    
    unsigned long int_time = millis(); // Read the clock
-   char state = (!digitalRead(button));
+   char state = digitalRead(button);
 
    if (int_time - last_int_time > 200 ) {  
      // Ignore when < 200 msec
@@ -351,7 +351,8 @@ void handle_click() { // button debouncing, toggle LED
 
 void setup(){
     pinMode(buzzer, OUTPUT);
-    pinMode(button, INPUT); //return LOW when down
+    pinMode(button, INPUT_PULLUP); //return LOW when down
+//    attachInterrupt(button, handle_click, FALLING);
     attachInterrupt(digitalPinToInterrupt(button), handle_click, CHANGE);
 //    attachInterrupt(button, handle_click, CHANGE);
     interrupts();
