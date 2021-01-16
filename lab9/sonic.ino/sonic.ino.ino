@@ -1,5 +1,5 @@
-int trigPin = 11;                  //Trig Pin
-int echoPin = A2;                  //Echo Pin
+int trigPin = 13;                  //Trig Pin
+int echoPin = 12;                  //Echo Pin
 long duration, cm, inches;
  
 void setup() {
