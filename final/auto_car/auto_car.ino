@@ -1,11 +1,15 @@
 #include <NewPing.h>
 #include <SoftwareSerial.h>
+#include <Wire.h>
 
 // Bluetooth
 #define BlueToothRecvPin 2
 #define BlueToothSendPin 3
+#define IndecatorLEDPin 10
 SoftwareSerial BT(BlueToothRecvPin, BlueToothSendPin); // 接收腳, 傳送腳
 char val;  // 儲存接收資料的變數
+enum Mode{Auto, Remote};
+Mode current_mode = Mode::Auto;
 
 // Ultrasonic
 #define UltraSonicMaxDis 200
@@ -13,6 +17,7 @@ char val;  // 儲存接收資料的變數
 #define EchoPinR 12                 //Echo Pin of right ultrasonic detector
 #define TrigPinL 7                 //Trig Pin of left ultrasonic detector
 #define EchoPinL 6                 //Echo Pin of left ultrasonic detector
+#define SafeDis 15
 
 enum UtltraSonic{D_Right, D_Left};
 NewPing sonarR(TrigPinR, EchoPinR, UltraSonicMaxDis);
@@ -24,18 +29,20 @@ NewPing sonarL(TrigPinL, EchoPinL, UltraSonicMaxDis);
 //Motors
 //Right Side
 //Motor A on right hand side: pin 8
-#define MotorAR_1A 8 // Digital Pin, control directions, HIGH: Back, LOW: Forward
-//Motor A on right hand side: pin 8
-#define MotorAR_1B 10 // Analog pin, control speed
+#define MotorAR_1A 4 // Digital Pin, control directions, HIGH: Back, LOW: Forward
+#define MotorAR_1B 5 // Analog pin, control speed
 //Left Side
 #define MotorBL_1A 9 // Digital Pin, control directions, HIGH: Back, LOW: Forward
 #define MotorBL_1B 11 // Analog pin, control speed
 
 enum Direction{Forward, Left, Right, Back, Stop};
 
+Direction current_dir = Direction::Stop;
+
 void bluetooth_init(){
     Serial.println("BT is ready!");
     BT.begin(9600);    
+    pinMode(IndecatorLEDPin, OUTPUT);
 }
 
 void timer_init(){
@@ -111,10 +118,10 @@ int get_dis(UtltraSonic det){
 //  cm = (duration/2) / 29.1;         // 將時間換算成距離 cm 或 inch  
 //  inches = (duration/2) / 74; 
 
-//  Serial.print("Distance : ");  
-//  Serial.print(cm);
-//  Serial.print("cm");
-//  Serial.println();
+  Serial.print("Distance : ");  
+  Serial.print(cm);
+  Serial.print("cm");
+  Serial.println();
   
 //  delay(250);
   return cm;
@@ -138,7 +145,7 @@ void move(Direction dir, int speed){
 
     case Direction::Right:
       digitalWrite(MotorAR_1A, HIGH);
-      analogWrite(MotorAR_1B, -speed);
+      analogWrite(MotorAR_1B, speed);
       digitalWrite(MotorBL_1A, LOW);
       analogWrite(MotorBL_1B, speed);
       break;
@@ -147,7 +154,7 @@ void move(Direction dir, int speed){
       digitalWrite(MotorAR_1A, LOW);
       analogWrite(MotorAR_1B, speed);
       digitalWrite(MotorBL_1A, HIGH);
-      analogWrite(MotorBL_1B, -speed);
+      analogWrite(MotorBL_1B, speed);
       break;
       
     case Direction::Stop:
@@ -165,23 +172,57 @@ int sound_det(){
 }
 
 ISR(TIMER1_COMPA_vect) { // Timer1 ISR
-//  Serial.print("Right: ");
-//  get_dis(UtltraSonic::D_Right);
-//  Serial.print("Left: ");
-//  get_dis(UtltraSonic::D_Left);
+//    Serial.print("ISR\n");
+  byte cmmd[20];
+  char cmmd_c[20];
+  int insize;
+  if ((insize=(BT.available()))>0){
+       Serial.print("input size = "); 
+       Serial.println(insize);
+       for (int i=0; i<insize; i++){
+         cmmd[i]=char(BT.read());
+         cmmd_c[i] = (char)cmmd[i];
+         Serial.print(cmmd_c[i]);
+         Serial.print("\n"); 
+       }
 
-    Serial.print("ISR\n");
-    get_bt_msg();
+       switch (cmmd_c[0]) {
+        case 'A':
+          current_mode = Mode::Auto;
+          current_dir = Direction::Stop;
+          digitalWrite(IndecatorLEDPin, LOW);
+          break;
+          
+        case 'R':
+          current_mode = Mode::Remote;
+          current_dir = Direction::Stop;
+          digitalWrite(IndecatorLEDPin, HIGH);
+          break;
+
+        case 'f':
+          if(current_mode == Mode::Remote){current_dir = Direction::Forward;}
+          break;
+
+        case 'b':
+          Serial.print("Enter B");
+          if(current_mode == Mode::Remote){current_dir = Direction::Back;}
+          break;
+
+        case 's':
+          if(current_mode == Mode::Remote){current_dir = Direction::Stop;}
+          break;
+    }
+  }
 }
 
 void test_motors(){
   Serial.print("Forward\n");
-  move(Direction::Forward, 255);
+  move(Direction::Forward, 225);
   delay(5000);
   
   Serial.print("Stop\n");
   move(Direction::Stop, 0);
-  delay(5000);
+  delay(3000);
   
   Serial.print("Back\n");
   move(Direction::Back, 128);
@@ -189,13 +230,54 @@ void test_motors(){
   
   Serial.print("Stop\n");
   move(Direction::Stop, 0);
-  delay(5000);
+  delay(3000);
 }
 
 void sound_det_test(){
   Serial.print("Sound: ");
   Serial.println(sound_det());
   delay(10);
+}
+
+void start_auto_car(){
+  for(;;){
+    if(get_dis(UtltraSonic::D_Right) < SafeDis){
+      move(Direction::Left, 128);
+      delay(500);
+      move(Direction::Stop, 0);
+    }else if(get_dis(UtltraSonic::D_Left) < SafeDis){
+      move(Direction::Right, 128);
+      delay(500);
+      move(Direction::Stop, 0);
+    }else{
+      move(Direction::Forward, 255);
+      delay(500);
+    }
+  }
+}
+
+void start_remote_car(){
+  for(;;){
+    if(current_mode != Mode::Remote) break;
+
+    switch (current_dir) {
+      case Direction::Forward:
+        move(Direction::Forward, 255);
+        break;
+        
+      case Direction::Back:
+        move(Direction::Back, 128);
+        break;
+        
+      case Direction::Stop:
+        move(Direction::Stop, 0);
+        break;
+        
+      default:
+        move(Direction::Stop, 0);
+        break;
+    }
+  }
 }
 
 void setup() {
@@ -209,7 +291,6 @@ void setup() {
 
 void loop() {
   // put your main code here, to run repeatedly:
-//  get_dis(UtltraSonic::D_Right);
 //  test_motors();
 //  sound_det_test();
 
@@ -218,6 +299,8 @@ void loop() {
 //  Serial.print("Left: ");
 //  get_dis(UtltraSonic::D_Left);
 //  delay(250);
+  start_remote_car();
 
 //    get_bt_msg();
+//    start_auto_car();
 }

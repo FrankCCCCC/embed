@@ -12,7 +12,7 @@ void setup() {
   // 如果是HC-05，請改成38400, 因HC-05預設為38400
   
   // But if you use YAHBOOM's bluetooth module, you need to set the baud rare as 9600
-  BT.begin(9600);
+  BT.begin(38400);
 }
 
 void loop() {
