@@ -204,8 +204,15 @@ ISR(TIMER1_COMPA_vect) { // Timer1 ISR
           break;
 
         case 'b':
-          Serial.print("Enter B");
           if(current_mode == Mode::Remote){current_dir = Direction::Back;}
+          break;
+
+        case 'r':
+          if(current_mode == Mode::Remote){current_dir = Direction::Right;}
+          break;
+
+        case 'l':
+          if(current_mode == Mode::Remote){current_dir = Direction::Left;}
           break;
 
         case 's':
@@ -241,6 +248,8 @@ void sound_det_test(){
 
 void start_auto_car(){
   for(;;){
+    if(current_mode != Mode::Auto) break;
+
     if(get_dis(UtltraSonic::D_Right) < SafeDis){
       move(Direction::Left, 128);
       delay(500);
@@ -267,6 +276,14 @@ void start_remote_car(){
         
       case Direction::Back:
         move(Direction::Back, 128);
+        break;
+
+      case Direction::Right:
+        move(Direction::Right, 128);
+        break;
+
+      case Direction::Left:
+        move(Direction::Left, 128);
         break;
         
       case Direction::Stop:
@@ -302,5 +319,5 @@ void loop() {
   start_remote_car();
 
 //    get_bt_msg();
-//    start_auto_car();
+  start_auto_car();
 }
