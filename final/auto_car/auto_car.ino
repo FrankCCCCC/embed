@@ -25,6 +25,8 @@ NewPing sonarL(TrigPinL, EchoPinL, UltraSonicMaxDis);
 
 // Sound Detection
 #define Sound_A0 A0                //0687A sound detector' A0 pin correspond to A0 on UNO board
+#define Sound_Threshold 700
+bool is_start = false;
 
 //Motors
 //Right Side
@@ -171,6 +173,13 @@ int sound_det(){
   return snd;
 }
 
+void on_off(){
+  if(sound_det() > Sound_Threshold){
+    if(is_start){is_start = false;}
+    else{is_start = true;}
+  }
+}
+
 ISR(TIMER1_COMPA_vect) { // Timer1 ISR
 //    Serial.print("ISR\n");
   byte cmmd[20];
@@ -247,8 +256,8 @@ void sound_det_test(){
 }
 
 void start_auto_car(){
-  for(;;){
-    if(current_mode != Mode::Auto) break;
+//  for(;;){
+    if(current_mode != Mode::Auto || !is_start) return;
 
     if(get_dis(UtltraSonic::D_Right) < SafeDis){
       move(Direction::Left, 128);
@@ -262,12 +271,12 @@ void start_auto_car(){
       move(Direction::Forward, 255);
       delay(500);
     }
-  }
+//  }
 }
 
 void start_remote_car(){
-  for(;;){
-    if(current_mode != Mode::Remote) break;
+//  for(;;){
+    if(current_mode != Mode::Remote || !is_start) return;
 
     switch (current_dir) {
       case Direction::Forward:
@@ -294,7 +303,7 @@ void start_remote_car(){
         move(Direction::Stop, 0);
         break;
     }
-  }
+//  }
 }
 
 void setup() {
@@ -316,8 +325,7 @@ void loop() {
 //  Serial.print("Left: ");
 //  get_dis(UtltraSonic::D_Left);
 //  delay(250);
+  on_off();
   start_remote_car();
-
-//    get_bt_msg();
   start_auto_car();
 }
