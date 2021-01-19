@@ -1,3 +1,4 @@
+#include <Arduino_FreeRTOS.h>
 #include <NewPing.h>
 #include <SoftwareSerial.h>
 #include <Wire.h>
@@ -17,7 +18,7 @@ Mode current_mode = Mode::Auto;
 #define EchoPinR 12                 //Echo Pin of right ultrasonic detector
 #define TrigPinL 7                 //Trig Pin of left ultrasonic detector
 #define EchoPinL 6                 //Echo Pin of left ultrasonic detector
-#define SafeDis 15
+#define SafeDis 30
 
 enum UtltraSonic{D_Right, D_Left};
 NewPing sonarR(TrigPinR, EchoPinR, UltraSonicMaxDis);
@@ -52,7 +53,7 @@ void timer_init(){
   TCCR1A = 0;    TCCR1B = 0;    TCNT1 = 0;
   TCCR1B |= (1 << WGM12); // turn on CTC mode
   TCCR1B |= (1<<CS12) | (1<<CS10); // 1024 prescaler
-  OCR1A = 7812;  // give 0.5 sec at 16 MHz/1024
+  OCR1A = 50;  // give 0.5 sec at 16 MHz/1024
 //  OCR1A = 20000;  // give 0.5 sec at 16 MHz/1024
   
   TIMSK1 |= (1<<OCIE1A); // enable timer compare int.
@@ -120,10 +121,10 @@ int get_dis(UtltraSonic det){
 //  cm = (duration/2) / 29.1;         // 將時間換算成距離 cm 或 inch  
 //  inches = (duration/2) / 74; 
 
-  Serial.print("Distance : ");  
-  Serial.print(cm);
-  Serial.print("cm");
-  Serial.println();
+//  Serial.print("Distance : ");  
+//  Serial.print(cm);
+//  Serial.print("cm");
+//  Serial.println();
   
 //  delay(250);
   return cm;
@@ -175,8 +176,9 @@ int sound_det(){
 
 void on_off(){
   if(sound_det() > Sound_Threshold){
-    if(is_start){is_start = false;}
-    else{is_start = true;}
+//    if(is_start){is_start = false;}
+//    else{is_start = true;}
+    is_start = true;
   }
 }
 
@@ -227,6 +229,10 @@ ISR(TIMER1_COMPA_vect) { // Timer1 ISR
         case 's':
           if(current_mode == Mode::Remote){current_dir = Direction::Stop;}
           break;
+          
+        case 'x':
+          is_start = false;
+          break;
     }
   }
 }
@@ -259,17 +265,44 @@ void start_auto_car(){
 //  for(;;){
     if(current_mode != Mode::Auto || !is_start) return;
 
-    if(get_dis(UtltraSonic::D_Right) < SafeDis){
-      move(Direction::Left, 128);
-      delay(500);
+    const int speed = 96;
+    int r_dis = get_dis(UtltraSonic::D_Right);
+    int l_dis = get_dis(UtltraSonic::D_Left);
+
+    if(r_dis < SafeDis && l_dis < SafeDis){
+      if(r_dis <= l_dis){
+        while(get_dis(UtltraSonic::D_Right) < SafeDis || get_dis(UtltraSonic::D_Left) < SafeDis){
+          Serial.println("Turning Left");
+          move(Direction::Left, speed);
+          delay(5); 
+        }
+        move(Direction::Stop, 0);
+      }else{
+        while(get_dis(UtltraSonic::D_Left) < SafeDis || get_dis(UtltraSonic::D_Right) < SafeDis){
+          Serial.println("Turning Right");
+          move(Direction::Right, speed);
+          delay(5);
+        }
+        move(Direction::Stop, 0);
+      }
+    }else if(r_dis < SafeDis){
+      while(get_dis(UtltraSonic::D_Right) < SafeDis || get_dis(UtltraSonic::D_Left) < SafeDis){
+        Serial.println("Turning Left");
+        move(Direction::Left, speed);
+        delay(5); 
+      }
       move(Direction::Stop, 0);
-    }else if(get_dis(UtltraSonic::D_Left) < SafeDis){
-      move(Direction::Right, 128);
-      delay(500);
+    }else if(l_dis < SafeDis){
+      while(get_dis(UtltraSonic::D_Left) < SafeDis || get_dis(UtltraSonic::D_Right) < SafeDis){
+        Serial.println("Turning Right");
+        move(Direction::Right, speed);
+        delay(5);
+      }
       move(Direction::Stop, 0);
     }else{
-      move(Direction::Forward, 255);
-      delay(500);
+      Serial.println("Going Straight");
+      move(Direction::Forward, speed);
+      delay(50);
     }
 //  }
 }
@@ -280,7 +313,7 @@ void start_remote_car(){
 
     switch (current_dir) {
       case Direction::Forward:
-        move(Direction::Forward, 255);
+        move(Direction::Forward, 196);
         break;
         
       case Direction::Back:
@@ -306,6 +339,14 @@ void start_remote_car(){
 //  }
 }
 
+void mainTask(void *pvParameters){
+  for(;;){
+    on_off();
+    start_remote_car();
+    start_auto_car(); 
+  }
+}
+
 void setup() {
   Serial.begin (9600);             // Serial Port begin
   bluetooth_init();
@@ -313,6 +354,9 @@ void setup() {
   usonic_init();
   motors_init();
   sound_det_init();
+
+  xTaskCreate(mainTask, "MainTask", 256, NULL, 5, NULL);
+//  vTaskStartScheduler();
 }
 
 void loop() {
@@ -325,7 +369,5 @@ void loop() {
 //  Serial.print("Left: ");
 //  get_dis(UtltraSonic::D_Left);
 //  delay(250);
-  on_off();
-  start_remote_car();
-  start_auto_car();
+//   mainTask();
 }
