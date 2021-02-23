@@ -1,0 +1,17 @@
+.\output\outputdata.o: User\OUTPUTDATA.c
+.\output\outputdata.o: User\outputdata.h
+.\output\outputdata.o: User\usart.h
+.\output\outputdata.o: .\CMSIS\stm32f10x.h
+.\output\outputdata.o: .\CMSIS\core_cm3.h
+.\output\outputdata.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\stdint.h
+.\output\outputdata.o: .\CMSIS\system_stm32f10x.h
+.\output\outputdata.o: .\User\stm32f10x_conf.h
+.\output\outputdata.o: .\FWlib\inc\stm32f10x_dma.h
+.\output\outputdata.o: .\CMSIS\stm32f10x.h
+.\output\outputdata.o: .\FWlib\inc\stm32f10x_gpio.h
+.\output\outputdata.o: .\FWlib\inc\stm32f10x_i2c.h
+.\output\outputdata.o: .\FWlib\inc\stm32f10x_rcc.h
+.\output\outputdata.o: .\FWlib\inc\stm32f10x_tim.h
+.\output\outputdata.o: .\FWlib\inc\stm32f10x_usart.h
+.\output\outputdata.o: .\FWlib\inc\misc.h
+.\output\outputdata.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\stdio.h

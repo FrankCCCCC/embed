@@ -1,0 +1,1 @@
+把libraries所有文件夹复制到Arduino的安装目录下的libraries文件夹里面在编译下载
